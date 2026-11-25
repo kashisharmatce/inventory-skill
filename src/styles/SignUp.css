@@ -65,8 +65,11 @@ body {
   }
   
   @media (max-width: 576px) {
-    .card {
-      margin: 1rem;
+    .login-container .card {
+      margin: 0;
+    }
+
+    .login-container .card-body {
+      padding: 1.25rem;
     }
   }
-  

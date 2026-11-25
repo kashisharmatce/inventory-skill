@@ -10,7 +10,7 @@ export default function StatCards({ cards, titleColor = "purple", className }) {
   return (
     <Row className={className}>
       {cards.map((card) => (
-        <Col xs={3} key={card.title}>
+        <Col xs={12} sm={6} lg={3} key={card.title} className="mb-3 mb-lg-0">
           <Card>
             <Card.Body>
               <Card.Title style={titleColor ? { color: titleColor } : undefined}>{card.title}</Card.Title>

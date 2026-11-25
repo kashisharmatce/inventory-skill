@@ -5,13 +5,13 @@ import { isBlank, isUuid } from "@/lib/validations";
 const toProduct = (r) => ({
   id: r.id,
   productName: r.product_name,
-  category: r.category,
   description: r.description,
   quantity: r.quantity,
   price: r.price,
   purchaseDate: r.purchase_date,
   warrantyCheck: r.warranty_check,
   minimumStockLevel: r.minimum_stock_level,
+  status: r.status ?? null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -27,7 +27,6 @@ const toNumber = (value, label, { integer = false } = {}) => {
 function toColumns(body) {
   const cols = {};
   if (body.productName !== undefined) cols.product_name = String(body.productName).trim();
-  if (body.category !== undefined) cols.category = String(body.category).trim();
   if (body.description !== undefined) cols.description = body.description ?? "";
   if (body.quantity !== undefined) cols.quantity = toNumber(body.quantity, "Quantity", { integer: true });
   if (body.price !== undefined)
@@ -40,16 +39,20 @@ function toColumns(body) {
     cols.minimum_stock_level = isBlank(body.minimumStockLevel)
       ? null
       : toNumber(body.minimumStockLevel, "Minimum stock level", { integer: true });
+  if (body.status !== undefined) {
+    if (isBlank(body.status)) cols.status = null;
+    else if (["in-stock", "low-stock"].includes(body.status)) cols.status = body.status;
+    else throw new ApiError(400, "Status must be In-Stock, Low-Stock or Auto");
+  }
   return cols;
 }
 
 export async function createProduct(supabase, body) {
   if (isBlank(body.productName)) throw new ApiError(400, "Product name is required");
-  if (isBlank(body.category)) throw new ApiError(400, "Category is required");
   if (isBlank(body.price)) throw new ApiError(400, "Price is required");
   if (isBlank(body.quantity)) throw new ApiError(400, "Please add quantity");
 
-  const { data, error } = await supabase.from("products").insert(toColumns(body)).select().single();
+  const { data, error } = await supabase.from("products").insert({ category: "", ...toColumns(body) }).select().single();
   if (error) throw error;
   return toProduct(data);
 }
@@ -80,7 +83,6 @@ export async function updateProduct(supabase, id, body) {
 
   const columns = toColumns(body);
   if (columns.product_name === "") throw new ApiError(400, "Product name is required");
-  if (columns.category === "") throw new ApiError(400, "Category is required");
 
   const { data, error } = await supabase
     .from("products")

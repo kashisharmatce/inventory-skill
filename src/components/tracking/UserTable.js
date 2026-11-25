@@ -11,6 +11,7 @@ import { TiArrowUnsorted } from "react-icons/ti";
 import { api } from "@/lib/api";
 import { formatDate, toDateInput } from "@/lib/format";
 import Field from "@/components/ui/Field";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 
 const statusClass = (status) =>
   ({
@@ -24,6 +25,9 @@ export default function UserTable({ users = [], loading, onChanged }) {
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [saving, setSaving] = useState(false);
+  // Permission popup: { type: "edit" } or { type: "delete", user }
+  const [confirm, setConfirm] = useState(null);
+  const [working, setWorking] = useState(false);
 
   const handleEdit = (user) =>
     setEditing({
@@ -53,12 +57,16 @@ export default function UserTable({ users = [], loading, onChanged }) {
       components: prev.components.map((c, i) => (i === index ? { ...c, [field]: value } : c)),
     }));
 
-  const handleSave = async () => {
+  const performSave = async () => {
     setSaving(true);
     try {
       const { id, ...body } = editing;
+      const before = users.find((u) => u.id === id)?.status;
       await api(`/user/${id}`, { method: "PUT", body });
-      toast.success("User details updated successfully");
+      toast.success(`"${editing.name}" updated successfully`);
+      // stock follows the status: Returned puts the items back, leaving Returned takes them out again
+      if (body.status === "returned" && before !== "returned") toast.info("Components returned to the inventory");
+      else if (before === "returned" && body.status !== "returned") toast.info("Components taken out of the inventory again");
       setEditing(null);
       await onChanged();
     } catch (error) {
@@ -68,13 +76,30 @@ export default function UserTable({ users = [], loading, onChanged }) {
     }
   };
 
-  const handleDelete = async (id) => {
+  const performDelete = async (user) => {
+    setWorking(true);
     try {
-      await api(`/user/${id}`, { method: "DELETE" });
-      toast.success("User details deleted successfully");
+      await api(`/user/${user.id}`, { method: "DELETE" });
+      toast.success(`"${user.name}" deleted successfully`);
+      setConfirm(null);
       await onChanged();
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message || "Could not delete the user");
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (confirm?.type === "delete") return performDelete(confirm.user);
+    if (confirm?.type === "edit") {
+      setWorking(true);
+      try {
+        await performSave();
+      } finally {
+        setWorking(false);
+        setConfirm(null);
+      }
     }
   };
 
@@ -120,7 +145,7 @@ export default function UserTable({ users = [], loading, onChanged }) {
                 <Button className="button-add-product" onClick={() => handleEdit(user)} aria-label="Edit user">
                   <MdOutlineAddReaction size={20} />
                 </Button>
-                <Button className="button-add-product1" onClick={() => handleDelete(user.id)} aria-label="Delete user">
+                <Button className="button-add-product1" onClick={() => setConfirm({ type: "delete", user })} aria-label="Delete user">
                   <FaTrashCan size={20} />
                 </Button>
               </td>
@@ -162,12 +187,13 @@ export default function UserTable({ users = [], loading, onChanged }) {
                 <option value="pending">Pending</option>
                 <option value="returned">Returned</option>
               </Form.Control>
+              <Form.Text muted>Choosing Returned puts the issued components back into the inventory.</Form.Text>
             </Form.Group>
           </Form>
         </Modal.Body>
         <Modal.Footer>
           <Button className="cancel" onClick={() => setEditing(null)}>Cancel</Button>
-          <Button className="save" onClick={handleSave} disabled={saving}>
+          <Button className="save" onClick={() => setConfirm({ type: "edit" })} disabled={saving}>
             {saving ? "Saving..." : "Save"}
           </Button>
         </Modal.Footer>
@@ -201,6 +227,23 @@ export default function UserTable({ users = [], loading, onChanged }) {
           <Button className="cancel" onClick={() => setViewing(null)}>Close</Button>
         </Modal.Footer>
       </Modal>
+
+      {/* Permission popup for delete / edit */}
+      <ConfirmModal
+        show={!!confirm}
+        danger={confirm?.type === "delete"}
+        busy={working}
+        title={confirm?.type === "delete" ? "Delete user?" : "Save changes?"}
+        message={
+          confirm?.type === "delete"
+            ? `Are you sure you want to delete "${confirm.user.name}" and their issued components? This cannot be undone.`
+            : `Do you want to save the changes to "${editing?.name ?? ""}"?`
+        }
+        confirmLabel={confirm?.type === "delete" ? "Yes, delete" : "Yes, save"}
+        busyLabel={confirm?.type === "delete" ? "Deleting..." : "Saving..."}
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirm(null)}
+      />
     </>
   );
 }

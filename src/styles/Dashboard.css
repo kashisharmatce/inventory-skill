@@ -1,6 +1,7 @@
 .dashboard {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   background-color: #f8f9fa;
   align-items: stretch;
 }
@@ -72,21 +73,6 @@
   margin-top: 20px;
 }
 
-/* Media queries */
-@media (max-width: 768px) {
-  .sidebar {
-    width: 100%;
-    height: auto;
-  }
-
-  .main-content {
-    padding: 10px;
-  }
-
-  .card-title {
-    font-size: 1rem;
-  }
-}
 .button-add-product {
   background-color: #8b3e9c !important;
   color: #ffffff !important;
@@ -326,4 +312,752 @@ button.cancel:hover {
 .form-button-col {
   display: flex;
   align-items: flex-end;
+}
+
+/* Layout helpers (responsive) */
+.main-content {
+  min-width: 0;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-table th {
+  white-space: nowrap;
+}
+
+.admin-table td:last-child {
+  white-space: nowrap;
+}
+
+.chart-box canvas {
+  max-width: 100%;
+}
+
+/* Keep very wide monitors from stretching the content endlessly */
+@media (min-width: 1800px) {
+  .main-content > .container-fluid {
+    max-width: 1600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Tablet and below: the sidebar becomes an off-canvas drawer (opened from the header menu button) */
+@media (max-width: 991.98px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 250px;
+    max-width: 85vw;
+    z-index: 1040;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0s linear 0.25s;
+  }
+
+  .sidebar.open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.25s ease, visibility 0s;
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.45);
+    z-index: 1035;
+  }
+
+  .main-content {
+    width: 100%;
+    padding: 15px;
+  }
+
+  .main-content header {
+    padding: 8px 15px;
+    margin-bottom: 15px;
+  }
+
+  .menu-toggle {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .admin-table {
+    min-width: 900px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .main-content {
+    padding: 10px;
+  }
+
+  .card-title {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .main-content .card {
+    margin: 0;
+  }
+
+  .main-content .card-body {
+    padding: 1rem;
+  }
+
+  .main-content .navbar {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  /* Modals: use the available width and a smaller title/padding */
+  .modal-body {
+    padding: 1rem;
+  }
+
+  .modal-title {
+    font-size: 1.25rem;
+  }
+
+  .modal-footer {
+    justify-content: center;
+  }
+
+  .modal-dialog {
+    margin: 0.5rem;
+  }
+
+  /* Easier tap targets for icon buttons inside tables */
+  .admin-table .btn {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+/* Confirmation popup: red confirm button for deletes (same shape as .save / .cancel) */
+button.confirm-danger {
+  border-radius: 20px;
+  min-width: 100px;
+  padding: 10px 20px;
+  text-align: center;
+  display: inline-block;
+  margin: 5px;
+  background-color: #d9534f !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+button.confirm-danger:hover {
+  background-color: #c9302c !important;
+}
+
+@media (max-width: 575.98px) {
+  .main-content .button-add-product {
+    white-space: nowrap;
+    margin-right: 0;
+  }
+}
+
+/* Inventory summary cards */
+.inv-stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  text-align: left;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 576px) {
+  .inv-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .inv-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.inv-stat {
+  background: #ffffff;
+  border: 1px solid #e3e6ea;
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-width: 0;
+  --tone: #8b3e9c;
+  --tone-bg: #f3e5f7;
+  --tone-fg: #563d7c;
+}
+
+
+.inv-stat__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.inv-stat__icon {
+  color: var(--tone);
+}
+
+.inv-stat__badge {
+  background: var(--tone-bg);
+  color: var(--tone-fg);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+.inv-stat__title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: purple;
+}
+
+.inv-stat__value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 10px 0 6px;
+  color: var(--tone);
+  overflow-wrap: anywhere;
+}
+
+.inv-stat__note {
+  font-size: 0.8rem;
+  color: #f77f5b;
+}
+
+/* ---- Sidebar polish: clear nav items, active page highlight, logout at the bottom ---- */
+.sidebar .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  font-size: 1rem;
+  margin: 4px 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+}
+
+.sidebar .nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #f77f5b;
+}
+
+.sidebar .nav-link.active {
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  box-shadow: inset 3px 0 0 #f77f5b;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.sidebar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: transparent;
+  color: #f0e4e4;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.sidebar-icon-btn:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #f77f5b;
+}
+
+.sidebar-icon-btn--logout:hover {
+  color: #f66e6e;
+}
+
+.sidebar-icon-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* No top bar any more: a small floating menu button opens the drawer on phones/tablets */
+.menu-toggle {
+  display: none;
+}
+
+@media (max-width: 991.98px) {
+  .menu-toggle {
+    display: inline-flex;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1030;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: #ffffff;
+    color: #390b43;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  }
+
+  .main-content {
+    padding-top: 64px;
+  }
+}
+
+/* ---- Audit Report page ---- */
+.audit-filters {
+  text-align: left;
+  padding: 1rem;
+}
+
+.audit-filters .form-label {
+  font-size: 0.85rem;
+  color: #563d7c;
+}
+
+.audit-filters .btn-outline-secondary,
+.audit-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.audit-count {
+  color: #f77f5b;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.audit-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.audit-table td.text-start {
+  text-align: left;
+}
+
+.audit-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.audit-pagination__size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.audit-pagination__size .form-select {
+  width: auto;
+}
+
+.audit-pagination__range {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.pagination .page-link {
+  color: #563d7c;
+}
+
+.pagination .page-item.active .page-link {
+  background-color: #8b3e9c;
+  border-color: #8b3e9c;
+  color: #ffffff;
+}
+
+.pagination .page-link:focus {
+  box-shadow: none;
+}
+
+@media (max-width: 575.98px) {
+  .audit-pagination {
+    justify-content: center;
+  }
+
+  .audit-filters .btn,
+  .audit-export {
+    min-height: 40px;
+  }
+}
+
+/* The global ".modal-body div" padding rule removes Bootstrap's column gutters; put them back */
+.modal-body .row > [class*="col"] {
+  padding-left: calc(var(--bs-gutter-x) * 0.5);
+  padding-right: calc(var(--bs-gutter-x) * 0.5);
+}
+
+/* ---- Compact sizing (tables, tiles, buttons) so more fits on laptop screens ---- */
+.main-content {
+  padding: 16px;
+}
+
+.inv-stats {
+  gap: 10px;
+  margin-bottom: 0.75rem;
+}
+
+.inv-stat {
+  padding: 10px 14px;
+}
+
+.inv-stat__top {
+  margin-bottom: 6px;
+}
+
+.inv-stat__value {
+  font-size: 1.5rem;
+  margin: 6px 0 4px;
+}
+
+.main-content .card-body {
+  padding: 1rem 1.25rem;
+}
+
+@media (min-width: 576px) {
+  .admin-table th,
+  .admin-table td {
+    padding: 0.35rem 0.6rem;
+    vertical-align: middle;
+  }
+
+  .admin-table .btn {
+    padding: 0.2rem 0.5rem;
+    margin-right: 4px;
+    line-height: 1;
+  }
+
+  .admin-table .btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .table {
+    margin-top: 10px;
+  }
+}
+
+/* ---- Product attachments ---- */
+.attachment-picker {
+  text-align: left;
+}
+
+.attachment-picker__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.attachment-chosen,
+.attachment-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.attachment-chosen li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: #ffffff;
+  font-size: 0.9rem;
+}
+
+.attachment-chosen__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.attachment-chosen__size {
+  color: #6c757d;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.attachment-chosen__remove {
+  display: inline-flex;
+  border: none;
+  background: transparent;
+  color: #d9534f;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: #ffffff;
+}
+
+.attachment-item__preview {
+  position: relative;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #f3e5f7;
+  color: #8b3e9c;
+  overflow: hidden;
+}
+
+.attachment-item__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachment-item__tag {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: #8b3e9c;
+  color: #ffffff;
+  font-size: 0.6rem;
+  padding: 0 4px;
+  border-top-left-radius: 4px;
+}
+
+.attachment-item__info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.attachment-item__name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #563d7c;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.attachment-item__size {
+  color: #6c757d;
+  font-size: 0.8rem;
+}
+
+.attachment-item__action {
+  display: inline-flex;
+  border: none;
+  background: transparent;
+  color: #8b3e9c;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.attachment-item__action:hover {
+  background: #f3e5f7;
+  color: #f77f5b;
+}
+
+.attachment-item__action--danger {
+  color: #d9534f;
+}
+
+.attachment-empty {
+  color: #6c757d;
+  font-size: 0.9rem;
+  padding: 4px 0;
+  text-align: left;
+}
+
+/* Left-aligned table cells (names start at the left edge) */
+.admin-table th.cell-start,
+.admin-table td.cell-start {
+  text-align: left;
+}
+
+/* ---- Searchable component dropdown (Tracking > Add user) ---- */
+.combo {
+  position: relative;
+  text-align: left;
+}
+
+.combo__input {
+  padding-right: 2rem;
+}
+
+.combo__icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6c757d;
+  pointer-events: none;
+}
+
+.combo__clear {
+  pointer-events: auto;
+  border: none;
+  background: transparent;
+  padding: 2px;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.combo__clear:hover {
+  color: #d9534f;
+}
+
+.combo__list {
+  position: absolute;
+  z-index: 1060;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  min-width: 220px;
+}
+
+.combo__option,
+.combo__empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.combo__option {
+  cursor: pointer;
+}
+
+.combo__option.is-active {
+  background: #f3e5f7;
+}
+
+.combo__option.is-selected .combo__name {
+  font-weight: 700;
+  color: #8b3e9c;
+}
+
+.combo__name {
+  overflow-wrap: anywhere;
+}
+
+.combo__stock {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  color: #2e7d32;
+  white-space: nowrap;
+}
+
+.combo__stock.is-out {
+  color: #d9534f;
+}
+
+.combo__empty {
+  color: #6c757d;
+  justify-content: center;
+}
+
+.combo__warn {
+  color: #d9534f;
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+/* ---- Component dropdown: unavailable items, low stock, availability hint ---- */
+.combo__option.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  background: #f8f9fa;
+}
+
+.combo__option.is-disabled .combo__name {
+  text-decoration: line-through;
+  text-decoration-color: #adb5bd;
+}
+
+.combo__tags {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.combo__low {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fde4d3;
+  padding: 1px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.combo__hint {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #2e7d32;
+}
+
+.combo__hint.is-low {
+  color: #b45309;
 }

@@ -133,7 +133,8 @@ export async function createUser(supabase, body) {
   };
   const normalized = normalizeComponents(components);
 
-  await assertUnique(supabase, cleaned);
+  // Only the email must be unique; the same mobile number or USN may be used for several users.
+  await assertUnique(supabase, { email: cleaned.email });
 
   const { data: id, error } = await supabase.rpc("create_tracked_user", {
     p_name: cleaned.name,
@@ -177,7 +178,7 @@ export async function updateUser(supabase, id, body) {
     mobile: body.mobile === undefined ? null : String(body.mobile).trim(),
     usn: body.USN === undefined ? null : String(body.USN).trim(),
   };
-  await assertUnique(supabase, fields, id);
+  await assertUnique(supabase, { email: fields.email }, id);
 
   const { error } = await supabase.rpc("update_tracked_user", {
     p_id: id,

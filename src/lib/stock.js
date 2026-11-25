@@ -2,8 +2,15 @@
 
 const hasMin = (p) => p.minimumStockLevel !== null && p.minimumStockLevel !== undefined;
 
-/** Low stock: quantity at or below the configured minimum (never low when no minimum is set). */
-export const isLowStock = (p) => hasMin(p) && Number(p.quantity) <= Number(p.minimumStockLevel);
+/**
+ * Low stock: a manually chosen status wins ("low-stock" / "in-stock"); otherwise quantity at or below
+ * the configured minimum (never low when no minimum is set).
+ */
+export const isLowStock = (p) => {
+  if (p.status === "low-stock") return true;
+  if (p.status === "in-stock") return false;
+  return hasMin(p) && Number(p.quantity) <= Number(p.minimumStockLevel);
+};
 
 export const stockStatus = (p) => (isLowStock(p) ? "Low-Stock" : "In-Stock");
 

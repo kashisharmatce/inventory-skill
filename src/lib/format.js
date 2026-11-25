@@ -24,3 +24,12 @@ export function toDateInput(value) {
   const pad = (n) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
+
+/** Indian-style compact rupee amount: ₹8.5L, ₹1.2Cr, or the plain amount below one lakh. */
+export function formatCompactINR(amount) {
+  const n = Number(amount) || 0;
+  const trim = (v) => String(Math.round(v * 10) / 10);
+  if (n >= 1e7) return `₹${trim(n / 1e7)}Cr`;
+  if (n >= 1e5) return `₹${trim(n / 1e5)}L`;
+  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}

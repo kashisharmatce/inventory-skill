@@ -120,8 +120,11 @@ create table if not exists public.tracked_users (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists tracked_users_email_key  on public.tracked_users (lower(email));
-create unique index if not exists tracked_users_mobile_key on public.tracked_users (mobile);
-create unique index if not exists tracked_users_usn_key    on public.tracked_users (usn);
+-- mobile and USN may repeat across users (see 0004_allow_duplicate_mobile_usn.sql); email stays unique
+drop index if exists public.tracked_users_mobile_key;
+create index if not exists tracked_users_mobile_idx on public.tracked_users (mobile);
+drop index if exists public.tracked_users_usn_key;
+create index if not exists tracked_users_usn_idx    on public.tracked_users (usn);
 create index        if not exists tracked_users_status_idx on public.tracked_users (status);
 drop trigger if exists tracked_users_set_updated_at on public.tracked_users;
 create trigger tracked_users_set_updated_at

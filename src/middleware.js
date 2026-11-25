@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
-const PROTECTED_PAGES = ["/dashboard", "/inventory", "/user-track"];
+const PROTECTED_PAGES = ["/dashboard", "/inventory", "/user-track", "/audit-report"];
 
 const matches = (pathname, list) =>
   list.some((p) => pathname === p || pathname.startsWith(`${p}/`));
