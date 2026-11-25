@@ -1,0 +1,6 @@
+import { redirect } from "next/navigation";
+
+// The middleware sends logged-out visitors to /login; everyone else lands on the dashboard.
+export default function Home() {
+  redirect("/dashboard");
+}
