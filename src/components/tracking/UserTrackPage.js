@@ -65,7 +65,7 @@ export default function UserTrackPage() {
       { key: "item", Icon: LuTrendingUp, badge: "Popular", title: "Most Issued Item",
         value: show(item ? item.name : "—"), note: item ? `${item.qty} units issued` : "No components issued yet" },
       { key: "pending", Icon: LuClock, badge: "Attention", title: "Pending Return",
-        value: show(users.filter((u) => u.status === "pending").length), note: "Users yet to return components" },
+        value: show(users.filter((u) => u.outstanding > 0).length), note: "Users who still hold components" },
       { key: "available", Icon: LuBoxes, badge: "Stock", title: "Available Components",
         value: show(units.toLocaleString("en-IN")), note: "Units available in stock" },
     ];
@@ -157,9 +157,8 @@ export default function UserTrackPage() {
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
                 <option value="pending">Pending</option>
-                <option value="returned">Returned</option>
               </Form.Control>
-              <Form.Text muted>Choosing Returned puts the issued components back into the inventory.</Form.Text>
+              <Form.Text muted>When the components come back, use the Return button in the table - it asks whether each one is in good or damaged condition.</Form.Text>
             </Form.Group>
           </Form>
         </Modal.Body>

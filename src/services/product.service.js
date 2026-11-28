@@ -47,13 +47,32 @@ function toColumns(body) {
   return cols;
 }
 
+/** One component per name (any capitalisation): stops the same item being added - and its stock counted - twice. */
+async function assertNameFree(supabase, name, excludeId) {
+  const pattern = name.replace(/[\\%_]/g, (m) => "\\" + m);
+  let query = supabase.from("products").select("id, product_name").ilike("product_name", pattern).limit(1);
+  if (excludeId) query = query.neq("id", excludeId);
+  const { data, error } = await query;
+  if (error) throw error;
+  if (data.length > 0)
+    throw new ApiError(400, `"${data[0].product_name}" already exists in the inventory. Open it and edit the quantity to add stock.`);
+}
+
+function mapProductError(error) {
+  if (error?.code === "23505" && /products_name_unique|product_name/.test(error.message || ""))
+    return new ApiError(400, "A component with this name already exists in the inventory");
+  return error;
+}
+
 export async function createProduct(supabase, body) {
   if (isBlank(body.productName)) throw new ApiError(400, "Product name is required");
   if (isBlank(body.price)) throw new ApiError(400, "Price is required");
   if (isBlank(body.quantity)) throw new ApiError(400, "Please add quantity");
 
+  await assertNameFree(supabase, String(body.productName).trim());
+
   const { data, error } = await supabase.from("products").insert({ category: "", ...toColumns(body) }).select().single();
-  if (error) throw error;
+  if (error) throw mapProductError(error);
   return toProduct(data);
 }
 
@@ -83,6 +102,7 @@ export async function updateProduct(supabase, id, body) {
 
   const columns = toColumns(body);
   if (columns.product_name === "") throw new ApiError(400, "Product name is required");
+  if (columns.product_name) await assertNameFree(supabase, columns.product_name, id);
 
   const { data, error } = await supabase
     .from("products")
@@ -90,7 +110,7 @@ export async function updateProduct(supabase, id, body) {
     .eq("id", id)
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw mapProductError(error);
   return toProduct(data);
 }
 

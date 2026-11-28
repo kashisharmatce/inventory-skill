@@ -108,6 +108,7 @@ export default function InventoryPage() {
               placeholder="Enter description" value={form.description} onChange={handleChange} />
             <Field id="formQuantity" label="Quantity" type="number" min="0" name="quantity"
               placeholder="Enter quantity" value={form.quantity} onChange={handleChange} required />
+            <Form.Text muted className="d-block mb-2">The quantity entered here is recorded automatically as a purchase (Addition) in the Audit Report.</Form.Text>
             <Field id="formPrice" label="Price" type="text" name="price"
               placeholder="Enter price" value={form.price} onChange={handleChange} />
             <Field id="formPurchaseDate" label="Purchase Date" type="date" name="purchaseDate"

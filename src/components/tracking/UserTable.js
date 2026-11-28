@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Form, Modal, Table } from "react-bootstrap";
+import { Button, Col, Form, Modal, Row, Table } from "react-bootstrap";
 import { toast } from "react-toastify";
 import { FaEye } from "react-icons/fa";
 import { FaTrashCan } from "react-icons/fa6";
+import { LuUndo2 } from "react-icons/lu";
 import { MdOutlineAddReaction } from "react-icons/md";
 import { PiList } from "react-icons/pi";
 import { TiArrowUnsorted } from "react-icons/ti";
@@ -21,14 +22,25 @@ const statusClass = (status) =>
     returned: "status-returned",
   })[status] || "";
 
+/** "2 good, 1 damaged" for a component, or "-" when nothing came back yet. */
+const returnedText = (c) => {
+  const parts = [];
+  if (c.returnedGood > 0) parts.push(`${c.returnedGood} good`);
+  if (c.returnedDamaged > 0) parts.push(`${c.returnedDamaged} damaged`);
+  return parts.length ? parts.join(", ") : "-";
+};
+
 export default function UserTable({ users = [], loading, onChanged }) {
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [saving, setSaving] = useState(false);
-  // Permission popup: { type: "edit" } or { type: "delete", user }
+  // Return popup: { user, rows: [{ componentId, name, outstanding, quantity, condition }] }
+  const [returning, setReturning] = useState(null);
+  // Permission popup: { type: "edit" } | { type: "delete", user } | { type: "return" }
   const [confirm, setConfirm] = useState(null);
   const [working, setWorking] = useState(false);
 
+  // ---------- edit ----------
   const handleEdit = (user) =>
     setEditing({
       id: user.id,
@@ -37,10 +49,12 @@ export default function UserTable({ users = [], loading, onChanged }) {
       mobile: user.mobile,
       USN: user.USN,
       status: user.status,
+      origStatus: user.status,
       components: user.components.map((c) => ({
-        productId: c.productId,
+        id: c.id,
         productName: c.productName,
         quantity: c.quantity,
+        returned: c.returnedGood + c.returnedDamaged,
         issueAt: toDateInput(c.issueAt),
         returnDate: toDateInput(c.returnDate),
       })),
@@ -60,13 +74,13 @@ export default function UserTable({ users = [], loading, onChanged }) {
   const performSave = async () => {
     setSaving(true);
     try {
-      const { id, ...body } = editing;
-      const before = users.find((u) => u.id === id)?.status;
+      const { id, origStatus, components, ...rest } = editing;
+      const body = {
+        ...rest,
+        components: components.map((c) => ({ id: c.id, quantity: c.quantity, issueAt: c.issueAt, returnDate: c.returnDate })),
+      };
       await api(`/user/${id}`, { method: "PUT", body });
       toast.success(`"${editing.name}" updated successfully`);
-      // stock follows the status: Returned puts the items back, leaving Returned takes them out again
-      if (body.status === "returned" && before !== "returned") toast.info("Components returned to the inventory");
-      else if (before === "returned" && body.status !== "returned") toast.info("Components taken out of the inventory again");
       setEditing(null);
       await onChanged();
     } catch (error) {
@@ -76,6 +90,7 @@ export default function UserTable({ users = [], loading, onChanged }) {
     }
   };
 
+  // ---------- delete ----------
   const performDelete = async (user) => {
     setWorking(true);
     try {
@@ -85,6 +100,74 @@ export default function UserTable({ users = [], loading, onChanged }) {
       await onChanged();
     } catch (error) {
       toast.error(error.message || "Could not delete the user");
+      setConfirm(null);
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  // ---------- return ----------
+  const openReturn = (user) =>
+    setReturning({
+      user,
+      rows: user.components.map((c) => ({
+        componentId: c.id,
+        name: c.productName,
+        quantity: c.quantity,
+        returned: c.returnedGood + c.returnedDamaged,
+        outstanding: c.outstanding,
+        returnQty: String(c.outstanding), // by default the whole outstanding quantity comes back
+        condition: "good",
+      })),
+    });
+
+  const setReturnRow = (index, patch) =>
+    setReturning((prev) => ({ ...prev, rows: prev.rows.map((r, i) => (i === index ? { ...r, ...patch } : r)) }));
+
+  // what the user typed, as a clean list of items to send (rows with 0 are skipped)
+  const returnItems = () =>
+    (returning?.rows || [])
+      .filter((r) => r.outstanding > 0 && Number(r.returnQty) > 0)
+      .map((r) => ({ componentId: r.componentId, quantity: Number(r.returnQty), condition: r.condition, name: r.name }));
+
+  const returnProblem = () => {
+    for (const r of returning.rows) {
+      if (r.outstanding <= 0) continue;
+      const q = r.returnQty === "" ? 0 : Number(r.returnQty);
+      if (!Number.isInteger(q) || q < 0) return `Enter a whole number for "${r.name}"`;
+      if (q > r.outstanding) return `Only ${r.outstanding} of "${r.name}" can still be returned`;
+    }
+    if (returnItems().length === 0) return "Enter the quantity that is being returned";
+    return "";
+  };
+
+  const requestReturn = () => {
+    const problem = returnProblem();
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+    setConfirm({ type: "return" });
+  };
+
+  const performReturn = async () => {
+    setWorking(true);
+    try {
+      const items = returnItems();
+      await api(`/user/${returning.user.id}/return`, {
+        method: "POST",
+        body: { items: items.map(({ componentId, quantity, condition }) => ({ componentId, quantity, condition })) },
+      });
+      const good = items.filter((i) => i.condition === "good").reduce((s, i) => s + i.quantity, 0);
+      const bad = items.filter((i) => i.condition === "damaged").reduce((s, i) => s + i.quantity, 0);
+      if (good > 0) toast.success(`${good} component${good === 1 ? "" : "s"} added back to the inventory`);
+      if (bad > 0) toast.info(`${bad} damaged component${bad === 1 ? "" : "s"} recorded as scrap`);
+      setConfirm(null);
+      setReturning(null);
+      await onChanged();
+    } catch (error) {
+      toast.error(error.message || "Could not process the return");
+      setConfirm(null);
     } finally {
       setWorking(false);
     }
@@ -92,6 +175,7 @@ export default function UserTable({ users = [], loading, onChanged }) {
 
   const handleConfirm = async () => {
     if (confirm?.type === "delete") return performDelete(confirm.user);
+    if (confirm?.type === "return") return performReturn();
     if (confirm?.type === "edit") {
       setWorking(true);
       try {
@@ -102,6 +186,42 @@ export default function UserTable({ users = [], loading, onChanged }) {
       }
     }
   };
+
+  const confirmText = () => {
+    if (confirm?.type === "delete")
+      return {
+        title: "Delete user?",
+        message: `Are you sure you want to delete "${confirm.user.name}"? Their return history stays in the Audit Report. This cannot be undone.`,
+        label: "Yes, delete",
+        busy: "Deleting...",
+        danger: true,
+      };
+    if (confirm?.type === "return") {
+      const items = returnItems();
+      const good = items.filter((i) => i.condition === "good").reduce((s, i) => s + i.quantity, 0);
+      const bad = items.filter((i) => i.condition === "damaged").reduce((s, i) => s + i.quantity, 0);
+      const parts = [];
+      if (good > 0) parts.push(`${good} in good condition (added back to the inventory)`);
+      if (bad > 0) parts.push(`${bad} damaged (not added back - recorded as scrap)`);
+      return {
+        title: "Process return?",
+        message: `${returning?.user.name} is returning ${parts.join(" and ")}. This cannot be undone.`,
+        label: "Yes, return",
+        busy: "Processing...",
+        danger: false,
+      };
+    }
+    return {
+      title: "Save changes?",
+      message: `Do you want to save the changes to "${editing?.name ?? ""}"?`,
+      label: "Yes, save",
+      busy: "Saving...",
+      danger: false,
+    };
+  };
+  const ct = confirmText();
+
+  const COLS = 11;
 
   return (
     <>
@@ -115,6 +235,7 @@ export default function UserTable({ users = [], loading, onChanged }) {
             <th>USN <TiArrowUnsorted /></th>
             <th>Component Name <TiArrowUnsorted /></th>
             <th>Quantity <TiArrowUnsorted /></th>
+            <th>Returned</th>
             <th>Issued At <TiArrowUnsorted /></th>
             <th>Status <TiArrowUnsorted /></th>
             <th>Actions</th>
@@ -122,10 +243,10 @@ export default function UserTable({ users = [], loading, onChanged }) {
         </thead>
         <tbody>
           {loading && (
-            <tr><td colSpan={10}>Loading...</td></tr>
+            <tr><td colSpan={COLS}>Loading...</td></tr>
           )}
           {!loading && users.length === 0 && (
-            <tr><td colSpan={10}>No users found</td></tr>
+            <tr><td colSpan={COLS}>No users found</td></tr>
           )}
           {users.map((user, index) => (
             <tr key={user.id}>
@@ -136,12 +257,18 @@ export default function UserTable({ users = [], loading, onChanged }) {
               <td>{user.USN}</td>
               <td>{user.components.map((c) => <div key={c.id}>{c.productName || "N/A"}</div>)}</td>
               <td>{user.components.map((c) => <div key={c.id}>{c.quantity || "N/A"}</div>)}</td>
+              <td>{user.components.map((c) => <div key={c.id}>{returnedText(c)}</div>)}</td>
               <td>{user.components.map((c) => <div key={c.id}>{formatDate(c.issueAt) || "N/A"}</div>)}</td>
               <td className={statusClass(user.status)}>{user.status}</td>
               <td>
                 <Button className="button-add-product1" onClick={() => setViewing(user)} aria-label="View user">
                   <FaEye size={20} />
                 </Button>
+                {user.outstanding > 0 && (
+                  <Button className="button-return" onClick={() => openReturn(user)} aria-label="Return components" title="Return components">
+                    <LuUndo2 size={20} />
+                  </Button>
+                )}
                 <Button className="button-add-product" onClick={() => handleEdit(user)} aria-label="Edit user">
                   <MdOutlineAddReaction size={20} />
                 </Button>
@@ -154,24 +281,82 @@ export default function UserTable({ users = [], loading, onChanged }) {
         </tbody>
       </Table>
 
+      {/* Return modal */}
+      <Modal show={!!returning} onHide={() => !working && setReturning(null)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Return Components{returning ? ` - ${returning.user.name}` : ""}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {returning && (
+            <>
+              <p className="return-help">
+                Choose how many are coming back and their condition. <strong>Good</strong> condition goes back into the inventory.
+                {" "}<strong>Damaged</strong> does not: it is recorded as scrap in the Audit Report.
+              </p>
+              {returning.rows.map((r, i) => (
+                <Row key={r.componentId} className={`return-row${r.outstanding <= 0 ? " is-done" : ""}`}>
+                  <Col xs={12} md={5} className="return-row__name">
+                    <strong>{r.name}</strong>
+                    <small>
+                      Issued {r.quantity}
+                      {r.returned > 0 ? `, returned ${r.returned}` : ""}
+                      {r.outstanding > 0 ? ` - ${r.outstanding} still with the student` : " - fully returned"}
+                    </small>
+                  </Col>
+                  {r.outstanding > 0 ? (
+                    <>
+                      <Col xs={5} md={3}>
+                        <Form.Label htmlFor={`ret-qty-${i}`} className="mb-1">Returning</Form.Label>
+                        <Form.Control
+                          id={`ret-qty-${i}`}
+                          type="number"
+                          min="0"
+                          max={r.outstanding}
+                          value={r.returnQty}
+                          isInvalid={Number(r.returnQty) > r.outstanding}
+                          onChange={(e) => setReturnRow(i, { returnQty: e.target.value })}
+                        />
+                      </Col>
+                      <Col xs={7} md={4}>
+                        <Form.Label htmlFor={`ret-cond-${i}`} className="mb-1">Condition</Form.Label>
+                        <Form.Select id={`ret-cond-${i}`} value={r.condition} onChange={(e) => setReturnRow(i, { condition: e.target.value })}>
+                          <option value="good">Good condition</option>
+                          <option value="damaged">Damaged / Spoiled</option>
+                        </Form.Select>
+                      </Col>
+                    </>
+                  ) : (
+                    <Col xs={12} md={7} className="return-row__done">Nothing left to return</Col>
+                  )}
+                </Row>
+              ))}
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button className="cancel" onClick={() => setReturning(null)} disabled={working}>Cancel</Button>
+          <Button className="save" onClick={requestReturn} disabled={working}>Return</Button>
+        </Modal.Footer>
+      </Modal>
+
       {/* Edit modal */}
       <Modal show={!!editing} onHide={() => setEditing(null)}>
         <Modal.Header closeButton>
           <Modal.Title>Update User Details</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form>
+          <Form onSubmit={(e) => e.preventDefault()}>
             <Field id="editName" label="Name" type="text" name="name" value={editing?.name ?? ""} onChange={handleChange} />
             <Field id="editEmail" label="Email" type="email" name="email" value={editing?.email ?? ""} onChange={handleChange} />
             <Field id="editMobile" label="Mobile" type="text" name="mobile" value={editing?.mobile ?? ""} onChange={handleChange} />
             <Field id="editUSN" label="USN" type="text" name="USN" value={editing?.USN ?? ""} onChange={handleChange} />
 
             {editing?.components.map((comp, idx) => (
-              <div key={idx}>
-                <Field id={`editProductName-${idx}`} label="Component Name" type="text"
-                  value={comp.productName ?? ""} onChange={(e) => handleComponentChange(idx, "productName", e.target.value)} />
-                <Field id={`editQuantity-${idx}`} label="Quantity" type="number" min="1"
+              <div key={comp.id}>
+                <Field id={`editProductName-${idx}`} label="Component Name" type="text" disabled readOnly value={comp.productName ?? ""} />
+                <Field id={`editQuantity-${idx}`} label="Quantity" type="number" min={Math.max(1, comp.returned)}
                   value={comp.quantity ?? ""} onChange={(e) => handleComponentChange(idx, "quantity", e.target.value)} />
+                {comp.returned > 0 && <Form.Text muted>{comp.returned} already returned, so the quantity cannot be lower than that.</Form.Text>}
                 <Field id={`editIssueAt-${idx}`} label="Issue Date" type="date"
                   value={comp.issueAt ?? ""} onChange={(e) => handleComponentChange(idx, "issueAt", e.target.value)} />
                 <Field id={`editReturnDate-${idx}`} label="Return Date" type="date"
@@ -185,9 +370,11 @@ export default function UserTable({ users = [], loading, onChanged }) {
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
                 <option value="pending">Pending</option>
-                <option value="returned">Returned</option>
+                {editing?.origStatus === "returned" && <option value="returned">Returned</option>}
               </Form.Control>
-              <Form.Text muted>Choosing Returned puts the issued components back into the inventory.</Form.Text>
+              <Form.Text muted>
+                To mark components as returned, close this form and use the Return button - it asks for the condition of each component.
+              </Form.Text>
             </Form.Group>
           </Form>
         </Modal.Body>
@@ -214,7 +401,10 @@ export default function UserTable({ users = [], loading, onChanged }) {
               {viewing.components.map((c) => (
                 <div key={c.id}>
                   <p><strong>Component Name:</strong> {c.productName || "N/A"}</p>
-                  <p><strong>Quantity:</strong> {c.quantity || "N/A"}</p>
+                  <p><strong>Quantity issued:</strong> {c.quantity || "N/A"}</p>
+                  <p><strong>Returned in good condition:</strong> {c.returnedGood}</p>
+                  <p><strong>Returned damaged (scrap):</strong> {c.returnedDamaged}</p>
+                  <p><strong>Still with the student:</strong> {c.outstanding}</p>
                   <p><strong>Issued Date:</strong> {formatDate(c.issueAt) || "N/A"}</p>
                   <p><strong>Return Date:</strong> {formatDate(c.returnDate) || "N/A"}</p>
                 </div>
@@ -228,19 +418,15 @@ export default function UserTable({ users = [], loading, onChanged }) {
         </Modal.Footer>
       </Modal>
 
-      {/* Permission popup for delete / edit */}
+      {/* Permission popup for delete / edit / return */}
       <ConfirmModal
         show={!!confirm}
-        danger={confirm?.type === "delete"}
+        danger={ct.danger}
         busy={working}
-        title={confirm?.type === "delete" ? "Delete user?" : "Save changes?"}
-        message={
-          confirm?.type === "delete"
-            ? `Are you sure you want to delete "${confirm.user.name}" and their issued components? This cannot be undone.`
-            : `Do you want to save the changes to "${editing?.name ?? ""}"?`
-        }
-        confirmLabel={confirm?.type === "delete" ? "Yes, delete" : "Yes, save"}
-        busyLabel={confirm?.type === "delete" ? "Deleting..." : "Saving..."}
+        title={ct.title}
+        message={ct.message}
+        confirmLabel={ct.label}
+        busyLabel={ct.busy}
         onConfirm={handleConfirm}
         onCancel={() => setConfirm(null)}
       />

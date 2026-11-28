@@ -36,7 +36,7 @@ export default function ProductTable({ products, loading, onChanged }) {
   const [working, setWorking] = useState(false);
 
   const openEdit = (product) => {
-    setEditing({ ...product, status: product.status ?? "", origStatus: product.status ?? "" });
+    setEditing({ ...product, status: product.status ?? "", origStatus: product.status ?? "", origQuantity: product.quantity });
     setNewFiles([]);
     setExistingCount(0);
   };
@@ -217,6 +217,17 @@ export default function ProductTable({ products, loading, onChanged }) {
               value={editing?.description ?? ""} onChange={handleChange} />
             <Field id="editQuantity" className="mb-3" label="Quantity" type="number" min="0" name="quantity"
               value={editing?.quantity ?? ""} onChange={handleChange} />
+            {(() => {
+              const diff = Number(editing?.quantity) - Number(editing?.origQuantity);
+              if (!editing || !Number.isFinite(diff) || diff === 0) return null;
+              return (
+                <Form.Text className={`d-block mb-2 ${diff > 0 ? "text-success" : "text-danger"}`}>
+                  {diff > 0
+                    ? `Adding ${diff} will be recorded as a purchase (Addition) in the Audit Report.`
+                    : `Reducing by ${-diff} will be recorded as scrap in the Audit Report.`}
+                </Form.Text>
+              );
+            })()}
             <Field id="editPrice" className="mb-3" label="Price" type="number" min="0" step="any" name="price"
               value={editing?.price ?? ""} onChange={handleChange} />
             <Field id="editPurchaseDate" className="mb-3" label="Purchase Date" type="date" name="purchaseDate"
