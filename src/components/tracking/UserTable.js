@@ -13,6 +13,7 @@ import { api } from "@/lib/api";
 import { formatDate, toDateInput } from "@/lib/format";
 import Field from "@/components/ui/Field";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import ComponentSelect from "./ComponentSelect";
 
 const statusClass = (status) =>
   ({
@@ -30,7 +31,7 @@ const returnedText = (c) => {
   return parts.length ? parts.join(", ") : "-";
 };
 
-export default function UserTable({ users = [], loading, onChanged }) {
+export default function UserTable({ users = [], products = [], loading, onChanged }) {
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -47,14 +48,20 @@ export default function UserTable({ users = [], loading, onChanged }) {
       name: user.name,
       email: user.email,
       mobile: user.mobile,
-      USN: user.USN,
+      branch: user.branch,
       status: user.status,
       origStatus: user.status,
       components: user.components.map((c) => ({
         id: c.id,
+        productId: c.productId,
+        origProductId: c.productId,
         productName: c.productName,
+        origProductName: c.productName,
+        origQuantity: c.quantity,
         quantity: c.quantity,
         returned: c.returnedGood + c.returnedDamaged,
+        returnedGood: c.returnedGood,
+        returnedDamaged: c.returnedDamaged,
         issueAt: toDateInput(c.issueAt),
         returnDate: toDateInput(c.returnDate),
       })),
@@ -71,13 +78,34 @@ export default function UserTable({ users = [], loading, onChanged }) {
       components: prev.components.map((c, i) => (i === index ? { ...c, [field]: value } : c)),
     }));
 
+  // every component can be chosen; what is available for the current one includes the quantity this line already holds
+  const editableProducts = (comp) =>
+    products.map((p) => ({
+      ...p,
+      // what this line could take from the component (a good return that already came back is carried over, so it counts too)
+      available: (Number(p.quantity) || 0) + (p.id === comp.origProductId ? comp.origQuantity - comp.returnedGood : comp.returnedGood),
+      low: false,
+    }));
+
+  const changeComponent = (index, product) =>
+    setEditing((prev) => ({
+      ...prev,
+      components: prev.components.map((c, i) =>
+        i !== index
+          ? c
+          : product
+            ? { ...c, productId: product.id, productName: product.productName }
+            : { ...c, productId: c.origProductId, productName: c.origProductName }
+      ),
+    }));
+
   const performSave = async () => {
     setSaving(true);
     try {
       const { id, origStatus, components, ...rest } = editing;
       const body = {
         ...rest,
-        components: components.map((c) => ({ id: c.id, quantity: c.quantity, issueAt: c.issueAt, returnDate: c.returnDate })),
+        components: components.map((c) => ({ id: c.id, productId: c.productId, quantity: c.quantity, issueAt: c.issueAt, returnDate: c.returnDate })),
       };
       await api(`/user/${id}`, { method: "PUT", body });
       toast.success(`"${editing.name}" updated successfully`);
@@ -232,7 +260,7 @@ export default function UserTable({ users = [], loading, onChanged }) {
             <th>Name <TiArrowUnsorted /></th>
             <th>Email <TiArrowUnsorted /></th>
             <th>Mobile <TiArrowUnsorted /></th>
-            <th>USN <TiArrowUnsorted /></th>
+            <th>Branch <TiArrowUnsorted /></th>
             <th>Component Name <TiArrowUnsorted /></th>
             <th>Quantity <TiArrowUnsorted /></th>
             <th>Returned</th>
@@ -252,9 +280,9 @@ export default function UserTable({ users = [], loading, onChanged }) {
             <tr key={user.id}>
               <td>{index + 1}</td>
               <td>{user.name}</td>
-              <td>{user.email}</td>
+              <td>{user.email || "-"}</td>
               <td>{user.mobile}</td>
-              <td>{user.USN}</td>
+              <td>{user.branch || "-"}</td>
               <td>{user.components.map((c) => <div key={c.id}>{c.productName || "N/A"}</div>)}</td>
               <td>{user.components.map((c) => <div key={c.id}>{c.quantity || "N/A"}</div>)}</td>
               <td>{user.components.map((c) => <div key={c.id}>{returnedText(c)}</div>)}</td>
@@ -347,13 +375,30 @@ export default function UserTable({ users = [], loading, onChanged }) {
         <Modal.Body>
           <Form onSubmit={(e) => e.preventDefault()}>
             <Field id="editName" label="Name" type="text" name="name" value={editing?.name ?? ""} onChange={handleChange} />
-            <Field id="editEmail" label="Email" type="email" name="email" value={editing?.email ?? ""} onChange={handleChange} />
+            <Field id="editEmail" label="Email (optional)" type="text" name="email" placeholder="No email" value={editing?.email ?? ""} onChange={handleChange} />
             <Field id="editMobile" label="Mobile" type="text" name="mobile" value={editing?.mobile ?? ""} onChange={handleChange} />
-            <Field id="editUSN" label="USN" type="text" name="USN" value={editing?.USN ?? ""} onChange={handleChange} />
+            <Field id="editBranch" label="Branch" type="text" name="branch" value={editing?.branch ?? ""} onChange={handleChange} />
 
             {editing?.components.map((comp, idx) => (
               <div key={comp.id}>
-                <Field id={`editProductName-${idx}`} label="Component Name" type="text" disabled readOnly value={comp.productName ?? ""} />
+                <Form.Group className="mb-2">
+                  <Form.Label htmlFor={`editComponent-${idx}`}>Component Name</Form.Label>
+                  <ComponentSelect
+                    id={`editComponent-${idx}`}
+                    products={editableProducts(comp)}
+                    value={comp.productId}
+                    onSelect={(p) => changeComponent(idx, p)}
+                  />
+                  {comp.productId !== comp.origProductId && (
+                    <Form.Text className="d-block text-warning-emphasis">
+                      On save, {comp.origProductName} goes back into the inventory with its previous count and {comp.productName} takes this line.
+                      {comp.returned > 0
+                        ? ` What was already returned (${comp.returnedGood} good, ${comp.returnedDamaged} damaged) carries over to ${comp.productName}.`
+                        : ""}
+                      {" "}The Audit Report keeps its earlier entries and adds the correction.
+                    </Form.Text>
+                  )}
+                </Form.Group>
                 <Field id={`editQuantity-${idx}`} label="Quantity" type="number" min={Math.max(1, comp.returned)}
                   value={comp.quantity ?? ""} onChange={(e) => handleComponentChange(idx, "quantity", e.target.value)} />
                 {comp.returned > 0 && <Form.Text muted>{comp.returned} already returned, so the quantity cannot be lower than that.</Form.Text>}
@@ -395,9 +440,9 @@ export default function UserTable({ users = [], loading, onChanged }) {
           {viewing && (
             <div>
               <p><strong>Name:</strong> {viewing.name}</p>
-              <p><strong>Email:</strong> {viewing.email}</p>
+              <p><strong>Email:</strong> {viewing.email || "-"}</p>
               <p><strong>Mobile:</strong> {viewing.mobile}</p>
-              <p><strong>USN:</strong> {viewing.USN}</p>
+              <p><strong>Branch:</strong> {viewing.branch || "-"}</p>
               {viewing.components.map((c) => (
                 <div key={c.id}>
                   <p><strong>Component Name:</strong> {c.productName || "N/A"}</p>

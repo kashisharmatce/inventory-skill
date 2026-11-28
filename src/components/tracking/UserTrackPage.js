@@ -14,7 +14,7 @@ import { mostIssuedItem } from "@/lib/stats";
 import ComponentRows, { EMPTY_COMPONENT, validateComponents } from "./ComponentRows";
 import UserTable from "./UserTable";
 
-const EMPTY_USER = { name: "", email: "", mobile: "", USN: "", status: "active" };
+const EMPTY_USER = { name: "", email: "", mobile: "", branch: "", status: "active" };
 
 export default function UserTrackPage() {
   const [users, setUsers] = useState([]);
@@ -131,12 +131,12 @@ export default function UserTrackPage() {
           <Form>
             <Field id="formName" label="Name" type="text" name="name" placeholder="Enter User Name"
               value={form.name} onChange={handleChange} required />
-            <Field id="formEmail" label="Email" type="text" name="email" placeholder="Enter Email"
-              value={form.email} onChange={handleChange} required />
+            <Field id="formEmail" label="Email (optional)" type="text" name="email" placeholder="Enter email (optional)"
+              value={form.email} onChange={handleChange} />
             <Field id="formMobile" label="Contact" type="text" name="mobile" placeholder="Enter mobile number"
               value={form.mobile} onChange={handleChange} required />
-            <Field id="formUSN" label="USN" type="text" name="USN" placeholder="Enter USN number"
-              value={form.USN} onChange={handleChange} required />
+            <Field id="formBranch" label="Branch" type="text" name="branch" placeholder="Enter branch (text or number)"
+              value={form.branch} onChange={handleChange} required />
 
             {components.length === 0 && (
               <Button className="save" onClick={() => setComponents([{ ...EMPTY_COMPONENT }])}>
@@ -209,7 +209,7 @@ export default function UserTrackPage() {
               <Card.Body>
                 <Card.Title>User Details</Card.Title>
                 <div className="table-container table-scroll">
-                  <UserTable users={filteredUsers} loading={loading} onChanged={() => Promise.all([fetchUsers(), fetchProducts()])} />
+                  <UserTable users={filteredUsers} products={products} loading={loading} onChanged={() => Promise.all([fetchUsers(), fetchProducts()])} />
                 </div>
               </Card.Body>
             </Card>

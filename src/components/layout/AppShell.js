@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Image, Nav } from "react-bootstrap";
 import { toast } from "react-toastify";
-import { MdFactCheck, MdInventory, MdLogout, MdMenu, MdSpaceDashboard } from "react-icons/md";
+import { MdFactCheck, MdInventory, MdLogout, MdMenu, MdPayments, MdSpaceDashboard } from "react-icons/md";
 import { BiSolidUserAccount } from "react-icons/bi";
 import { RiHomeSmileFill } from "react-icons/ri";
 import { api } from "@/lib/api";
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", Icon: MdSpaceDashboard },
   { href: "/inventory", label: "Inventory", Icon: MdInventory },
   { href: "/user-track", label: "Tracking", Icon: BiSolidUserAccount },
+  { href: "/deposit", label: "Deposit", Icon: MdPayments },
   { href: "/audit-report", label: "Audit Report", Icon: MdFactCheck },
 ];
 

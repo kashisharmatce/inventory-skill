@@ -34,9 +34,9 @@ const toUser = (r) => {
   return {
     id: r.id,
     name: r.name,
-    email: r.email,
+    email: r.email || "",
     mobile: r.mobile,
-    USN: r.usn,
+    branch: r.branch || "",
     status: r.status,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -68,8 +68,10 @@ function normalizeEditedComponents(components) {
     const quantity = isBlank(c.quantity) ? null : Number(c.quantity);
     if (quantity !== null && (!Number.isInteger(quantity) || quantity <= 0))
       throw new ApiError(400, "Quantity must be a whole number greater than 0");
+    if (!isBlank(c.productId) && !isUuid(c.productId)) throw new ApiError(400, "Choose a valid component");
     return {
       component_id: c.id,
+      product_id: isBlank(c.productId) ? null : c.productId,
       quantity,
       issue_at: isBlank(c.issueAt) ? null : c.issueAt,
       return_date: isBlank(c.returnDate) ? null : c.returnDate,
@@ -83,7 +85,6 @@ function mapDbError(error) {
   const detail = message.split(":").slice(1).join(":");
   if (error?.code === "23505") {
     if (/email/.test(message)) return new ApiError(400, "this email already exist");
-    if (/usn/.test(message)) return new ApiError(400, "this USN already exist");
     if (/mobile/.test(message)) return new ApiError(400, "this mobile already exist");
     return new ApiError(400, "Duplicate value");
   }
@@ -103,15 +104,14 @@ function mapDbError(error) {
   if (error?.code === "PGRST202" || error?.code === "42883" || /return_components/.test(message) && /schema cache|does not exist/.test(message))
     return new ApiError(
       503,
-      "Returns are not set up yet. Run supabase/migrations/0006_stock_ledger_and_quarterly_audit.sql in the Supabase SQL Editor."
+      "The database needs the latest update. Run supabase/migrations/0009_change_component_any_line.sql in the Supabase SQL Editor (and 0006 first if you have not run it)."
     );
   return error;
 }
 
-async function assertUnique(supabase, { email, usn, mobile }, excludeId) {
+async function assertUnique(supabase, { email, mobile }, excludeId) {
   const checks = [
     ["email", email, "this email already exist", (q, v) => q.eq("email", v.toLowerCase())],
-    ["usn", usn, "this USN already exist", (q, v) => q.eq("usn", v)],
     ["mobile", mobile, "this mobile already exist", (q, v) => q.eq("mobile", v)],
   ];
   for (const [, value, message, apply] of checks) {
@@ -150,15 +150,15 @@ export async function getUserById(supabase, id) {
  * `create_tracked_user`); every issued component is also written to the stock ledger.
  */
 export async function createUser(supabase, body) {
-  const { name, email, mobile, USN, components } = body;
+  const { name, email, mobile, branch, components } = body;
   const status = body.status;
 
   if (isBlank(name)) throw new ApiError(400, "user name is required");
-  if (isBlank(email)) throw new ApiError(400, "email is required");
-  if (!isValidEmail(email)) throw new ApiError(400, "Invalid Email");
+  if (!isBlank(email) && !isValidEmail(String(email).trim())) throw new ApiError(400, "Invalid Email"); // the email is optional
   if (isBlank(mobile)) throw new ApiError(400, "mobile is required");
   if (!isValidMobile(mobile)) throw new ApiError(400, "Enter the valid mobile");
-  if (isBlank(USN)) throw new ApiError(400, "USN is required");
+  if (isBlank(branch)) throw new ApiError(400, "Branch is required");
+  if (String(branch).trim().length > 100) throw new ApiError(400, "Branch must be 100 characters or fewer");
   if (!Array.isArray(components) || components.length === 0)
     throw new ApiError(400, "Component details are required and cannot be empty");
   if (!isValidStatus(status))
@@ -167,20 +167,20 @@ export async function createUser(supabase, body) {
 
   const cleaned = {
     name: String(name).trim(),
-    email: String(email).trim().toLowerCase(),
+    email: isBlank(email) ? null : String(email).trim().toLowerCase(),
     mobile: String(mobile).trim(),
-    usn: String(USN).trim(),
+    branch: String(branch).trim(),
   };
   const normalized = normalizeComponents(components);
 
-  // Only the email must be unique; the same mobile number or USN may be used for several users.
+  // Only an email that was given must be unique; the same mobile number may be used for several users.
   await assertUnique(supabase, { email: cleaned.email });
 
   const { data: id, error } = await supabase.rpc("create_tracked_user", {
     p_name: cleaned.name,
     p_email: cleaned.email,
     p_mobile: cleaned.mobile,
-    p_usn: cleaned.usn,
+    p_branch: cleaned.branch,
     p_status: status,
     p_components: normalized,
   });
@@ -204,9 +204,9 @@ export async function updateUser(supabase, id, body) {
   await assertExists(supabase, id);
 
   if (body.name !== undefined && isBlank(body.name)) throw new ApiError(400, "user name is required");
-  if (body.email !== undefined && !isValidEmail(body.email)) throw new ApiError(400, "Invalid Email");
+  if (body.email !== undefined && !isBlank(body.email) && !isValidEmail(String(body.email).trim())) throw new ApiError(400, "Invalid Email");
   if (body.mobile !== undefined && !isValidMobile(body.mobile)) throw new ApiError(400, "Enter the valid mobile");
-  if (body.USN !== undefined && isBlank(body.USN)) throw new ApiError(400, "USN is required");
+  if (body.branch !== undefined && isBlank(body.branch)) throw new ApiError(400, "Branch is required");
   if (body.status !== undefined && !isValidStatus(body.status))
     throw new ApiError(400, `Status must be one of ${USER_STATUSES.map((s) => `'${s}'`).join(", ")}`);
   if (body.components !== undefined && (!Array.isArray(body.components) || body.components.length === 0))
@@ -214,9 +214,10 @@ export async function updateUser(supabase, id, body) {
 
   const fields = {
     name: body.name === undefined ? null : String(body.name).trim(),
-    email: body.email === undefined ? null : String(body.email).trim().toLowerCase(),
+    // undefined = leave as it is; empty = remove the email
+    email: body.email === undefined ? null : isBlank(body.email) ? "" : String(body.email).trim().toLowerCase(),
     mobile: body.mobile === undefined ? null : String(body.mobile).trim(),
-    usn: body.USN === undefined ? null : String(body.USN).trim(),
+    branch: body.branch === undefined ? null : String(body.branch).trim(),
   };
   await assertUnique(supabase, { email: fields.email }, id);
 
@@ -225,13 +226,25 @@ export async function updateUser(supabase, id, body) {
     p_name: fields.name,
     p_email: fields.email,
     p_mobile: fields.mobile,
-    p_usn: fields.usn,
+    p_branch: fields.branch,
     p_status: body.status ?? null,
     p_components: body.components === undefined ? null : normalizeEditedComponents(body.components),
   });
   if (error) throw mapDbError(error);
 
-  return getUserById(supabase, id);
+  const updated = await getUserById(supabase, id);
+
+  // An older database ignores a changed component without any error - make that visible instead of saying "updated".
+  for (const sent of body.components ?? []) {
+    if (isBlank(sent.productId)) continue;
+    const now = updated.components.find((c) => c.id === sent.id);
+    if (now && now.productId !== sent.productId)
+      throw new ApiError(
+        503,
+        "Changing a component needs the latest database update. Run supabase/migrations/0009_change_component_any_line.sql in the Supabase SQL Editor."
+      );
+  }
+  return updated;
 }
 
 /**
